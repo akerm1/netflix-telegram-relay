@@ -13,7 +13,7 @@ cfg = Config(
     email_account="a@b.com",
     email_app_password="secret",
     poll_interval_seconds=1,
-    dispatch_existing_on_start=True,
+    dispatch_existing_on_start=True, lookback_minutes=15,
 )
 
 dispatched = []
@@ -84,7 +84,7 @@ cfg2 = Config(
     email_account="a@b.com",
     email_app_password="secret",
     poll_interval_seconds=1,
-    dispatch_existing_on_start=False,
+    dispatch_existing_on_start=False, lookback_minutes=15,
 )
 dispatched2 = []
 
@@ -162,7 +162,7 @@ cfg3 = Config(
     email_account="a@b.com",
     email_app_password="secret",
     poll_interval_seconds=1,
-    dispatch_existing_on_start=True,
+    dispatch_existing_on_start=True, lookback_minutes=15,
 )
 
 

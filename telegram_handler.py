@@ -99,6 +99,17 @@ class TelegramBot:
         except Exception as e:
             logger.error("Failed to send password reset to admin: %s", e)
 
+    async def dispatch(self, parsed):
+        """Route a parsed email to the correct destination (shared by bot.py and run_once.py)."""
+        if parsed.is_password_reset:
+            await self.send_password_reset(parsed.data.get("url", ""))
+        elif parsed.is_household_link:
+            await self.send_household_link(parsed.data.get("url", ""))
+        elif parsed.is_code:
+            await self.send_code(parsed.data.get("value", ""))
+        else:
+            logger.warning("Unknown category, skipping dispatch")
+
     async def start(self):
         logger.info("Starting Telegram bot polling")
         await self.dp.start_polling(self.bot)

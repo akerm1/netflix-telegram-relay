@@ -11,7 +11,7 @@ cfg = Config(
     email_account="a@b.com",
     email_app_password="secret",
     poll_interval_seconds=1,
-    dispatch_existing_on_start=False,
+    dispatch_existing_on_start=False, lookback_minutes=15,
 )
 
 tg = TelegramBot(cfg)

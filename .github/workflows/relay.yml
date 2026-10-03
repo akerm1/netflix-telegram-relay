@@ -1,0 +1,51 @@
+name: netflix-relay
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  relay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Relay cycle
+        run: python run_once.py
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_GROUP_ID: ${{ secrets.TELEGRAM_GROUP_ID }}
+          ADMIN_TELEGRAM_ID: ${{ secrets.ADMIN_TELEGRAM_ID }}
+          IMAP_SERVER: ${{ secrets.IMAP_SERVER }}
+          EMAIL_ACCOUNT: ${{ secrets.EMAIL_ACCOUNT }}
+          EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
+          LOOKBACK_MINUTES: "15"
+
+      # GitHub disables scheduled workflows after 60 days without repository
+      # activity; a daily heartbeat commit prevents that.
+      - name: Keep scheduled workflow active
+        if: github.event_name == 'schedule'
+        run: |
+          if [ -n "$(git log -1 --format=%cd --date=iso --since='30 hours ago')" ]; then
+            echo "Recent activity exists; skipping heartbeat."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          echo "last kept: $(date -u +%FT%TZ)" > last_run.txt
+          git add last_run.txt
+          git commit -m "chore: keep scheduled workflow active"
+          git push

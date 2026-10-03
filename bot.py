@@ -4,7 +4,6 @@ import sys
 from config import load_config
 from email_monitor import EmailMonitor
 from logger import setup_logger
-from parser import ParsedEmail
 from telegram_handler import TelegramBot
 
 logger = setup_logger()
@@ -23,20 +22,7 @@ async def main():
 
     telegram = TelegramBot(config)
 
-    async def dispatch(parsed: ParsedEmail):
-        if parsed.is_password_reset:
-            url = parsed.data.get("url", "")
-            await telegram.send_password_reset(url)
-        elif parsed.is_household_link:
-            url = parsed.data.get("url", "")
-            await telegram.send_household_link(url)
-        elif parsed.is_code:
-            code = parsed.data.get("value", "")
-            await telegram.send_code(code)
-        else:
-            logger.warning("Unknown category, skipping dispatch")
-
-    monitor = EmailMonitor(config, dispatch)
+    monitor = EmailMonitor(config, telegram.dispatch)
 
     monitor_task = asyncio.create_task(monitor.run())
     telegram_task = asyncio.create_task(telegram.start())

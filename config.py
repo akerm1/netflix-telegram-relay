@@ -23,6 +23,7 @@ class Config:
     email_app_password: str
     poll_interval_seconds: int
     dispatch_existing_on_start: bool
+    lookback_minutes: int
 
 
 def load_config() -> Config:
@@ -64,6 +65,12 @@ def load_config() -> Config:
 
     dispatch_existing_on_start = _env_bool('DISPATCH_EXISTING_ON_START', False)
 
+    lookback_minutes_str = os.getenv('LOOKBACK_MINUTES', '15')
+    try:
+        lookback_minutes = int(lookback_minutes_str)
+    except ValueError:
+        raise ValueError('LOOKBACK_MINUTES must be an integer')
+
     return Config(
         telegram_bot_token=telegram_bot_token,
         telegram_group_id=telegram_group_id,
@@ -73,5 +80,6 @@ def load_config() -> Config:
         email_app_password=email_app_password,
         poll_interval_seconds=poll_interval_seconds,
         dispatch_existing_on_start=dispatch_existing_on_start,
+        lookback_minutes=lookback_minutes,
     )
 
