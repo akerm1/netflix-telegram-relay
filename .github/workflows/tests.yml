@@ -1,0 +1,39 @@
+name: tests
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # All tests run offline with mocked IMAP / a dummy bot token, so they are
+      # deterministic and safe to run on every push.
+      - name: Parser + logging smoke test
+        run: python test_smoke.py
+
+      - name: run_once window/date tests
+        run: python test_run_once.py
+
+      - name: Email monitor tests
+        run: python test_monitor.py
+
+      - name: Telegram handler tests
+        run: python test_telegram.py

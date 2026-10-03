@@ -8,6 +8,11 @@ on:
 permissions:
   contents: write
 
+# Never let two 5-minute cycles overlap (a slow cycle must not double-send).
+concurrency:
+  group: netflix-relay
+  cancel-in-progress: false
+
 jobs:
   relay:
     runs-on: ubuntu-latest

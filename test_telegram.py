@@ -35,6 +35,9 @@ async def check():
     await tg.send_password_reset("https://www.netflix.com/password")
     print("send methods handled API errors gracefully")
 
+    # close the aiohttp session so the interpreter exits cleanly (no warnings)
+    await tg.bot.session.close()
+
 
 asyncio.run(check())
 print("ALL TELEGRAM HANDLER TESTS PASSED")
