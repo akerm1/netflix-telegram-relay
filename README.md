@@ -44,10 +44,12 @@ your PC can be switched off and no server/card is required.
    gh secret set EMAIL_APP_PASSWORD  --body "your16charapppw"
    ```
 7. **Turn it on** — the workflow `.github/workflows/relay.yml` runs
-   `python run_once.py` every 5 minutes. Go to the **Actions** tab →
-   `netflix-relay` → **Run workflow** to test it immediately.
+   `python run_once.py` about once a minute (five offset cron expressions —
+   see [Scheduling latency](#scheduling-latency-why-1-minute)). Go to the
+   **Actions** tab → `netflix-relay` → **Run workflow** to test immediately.
 8. **Confirm** — you'll receive a Telegram message the next time a Netflix
-   email arrives (latency ≤ 5 minutes). Trigger a real Netflix code to test.
+   email arrives (typical latency under a minute). Trigger a real Netflix code
+   to test.
 
 Cost breakdown: Telegram bots, Gmail/IMAP, and GitHub Actions on a public repo
 are all **free**. Nothing here needs a paid plan.
@@ -110,13 +112,35 @@ repo — no server, no card, PC can stay off):
 2. Add repository secrets (`gh secret set NAME --body "value"`):
    `TELEGRAM_BOT_TOKEN`, `TELEGRAM_GROUP_ID`, `ADMIN_TELEGRAM_ID`,
    `IMAP_SERVER`, `EMAIL_ACCOUNT`, `EMAIL_APP_PASSWORD`.
-3. `.github/workflows/relay.yml` runs `python run_once.py` every 5 minutes —
-   a single IMAP cycle over only the newest unread emails, limited by
+3. `.github/workflows/relay.yml` runs `python run_once.py` roughly once a
+   minute — a single IMAP cycle over only the newest unread emails, limited by
    `LOOKBACK_MINUTES` so old backlog is never touched.
 
-Latency is at most 5 minutes. For 10-second latency run `python bot.py`
-locally instead — do not run both at the same time if you want to avoid the
-rare case of a duplicate delivery (both poll the same mailbox).
+### Scheduling latency (why ~1 minute)
+
+GitHub's documented minimum cadence for a **single** cron expression is 5
+minutes. The workflow works around that with five expressions that are each
+individually a legal 5-minute cadence but offset from each other by one minute:
+
+| Expression | Fires at |
+|---|---|
+| `*/5 * * * *` | :00 :05 :10 :15 … |
+| `1-59/5 * * * *` | :01 :06 :11 :16 … |
+| `2-59/5 * * * *` | :02 :07 :12 :17 … |
+| `3-59/5 * * * *` | :03 :08 :13 :18 … |
+| `4-59/5 * * * *` | :04 :09 :14 :19 … |
+
+Together they fire the workflow about once a minute. This is best-effort:
+GitHub may delay scheduled runs under load (and does not retry skipped ones),
+so treat ~1 minute as typical rather than guaranteed. If GitHub ever collapses
+these onto a single 5-minute grid, the schedule simply degrades to the old
+behaviour — no functional regression. Deduplication is unaffected either way:
+`run_once.py` only relays *unread* mail and marks it read, and the workflow's
+`concurrency` group serializes runs.
+
+For ~10-second latency run `python bot.py` locally instead — do not run both at
+the same time if you want to avoid the rare case of a duplicate delivery (both
+poll the same mailbox).
 
 ## Tests
 

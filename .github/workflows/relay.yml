@@ -1,14 +1,24 @@
 name: netflix-relay
 
 on:
+  # GitHub's documented minimum cadence for a SINGLE cron expression is 5
+  # minutes. Each expression below is individually a legal 5-minute-cadence
+  # schedule, but they are offset from one another by a minute, so together
+  # they fire the workflow about once per minute (~1 min worst case instead of
+  # ~5). If GitHub ever collapses these back onto a single 5-minute grid the
+  # schedule simply degrades to the previous behaviour - no regression.
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "*/5 * * * *"      # :00 :05 :10 :15 :20 :25 :30 :35 :40 :45 :50 :55
+    - cron: "1-59/5 * * * *"   # :01 :06 :11 :16 :21 :26 :31 :36 :41 :46 :51 :56
+    - cron: "2-59/5 * * * *"   # :02 :07 :12 :17 :22 :27 :32 :37 :42 :47 :52 :57
+    - cron: "3-59/5 * * * *"   # :03 :08 :13 :18 :23 :28 :33 :38 :43 :48 :53 :58
+    - cron: "4-59/5 * * * *"   # :04 :09 :14 :19 :24 :29 :34 :39 :44 :49 :54 :59
   workflow_dispatch:
 
 permissions:
   contents: write
 
-# Never let two 5-minute cycles overlap (a slow cycle must not double-send).
+# Never let two cycles overlap (a slow cycle must not double-send).
 concurrency:
   group: netflix-relay
   cancel-in-progress: false
@@ -38,6 +48,9 @@ jobs:
           EMAIL_ACCOUNT: ${{ secrets.EMAIL_ACCOUNT }}
           EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
           LOOKBACK_MINUTES: "15"
+          # Which cron entry fired this run (blank for manual runs). Lets us
+          # verify the offset schedules really produce ~1-minute spacing.
+          SCHEDULE_CRON: ${{ github.event.schedule }}
 
       # GitHub disables scheduled workflows after 60 days without repository
       # activity; a daily heartbeat commit prevents that.
