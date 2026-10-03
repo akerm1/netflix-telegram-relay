@@ -43,10 +43,11 @@ your PC can be switched off and no server/card is required.
    gh secret set EMAIL_ACCOUNT       --body "you@gmail.com"
    gh secret set EMAIL_APP_PASSWORD  --body "your16charapppw"
    ```
-7. **Turn it on** — the workflow `.github/workflows/relay.yml` runs
-   `python run_once.py` about once a minute (five offset cron expressions —
-   see [Scheduling latency](#scheduling-latency-why-1-minute)). Go to the
-   **Actions** tab → `netflix-relay` → **Run workflow** to test immediately.
+7. **Turn it on** — go to the **Actions** tab → `netflix-relay` →
+   **Run workflow** to test immediately, then set up the free external
+   scheduler in
+   [Reliable scheduling](#reliable-scheduling-external-trigger--required-for-on-time-relays).
+   GitHub's built-in `schedule` alone is **not** reliable (see that section).
 8. **Confirm** — you'll receive a Telegram message the next time a Netflix
    email arrives (typical latency under a minute). Trigger a real Netflix code
    to test.
@@ -112,35 +113,62 @@ repo — no server, no card, PC can stay off):
 2. Add repository secrets (`gh secret set NAME --body "value"`):
    `TELEGRAM_BOT_TOKEN`, `TELEGRAM_GROUP_ID`, `ADMIN_TELEGRAM_ID`,
    `IMAP_SERVER`, `EMAIL_ACCOUNT`, `EMAIL_APP_PASSWORD`.
-3. `.github/workflows/relay.yml` runs `python run_once.py` roughly once a
-   minute — a single IMAP cycle over only the newest unread emails, limited by
-   `LOOKBACK_MINUTES` so old backlog is never touched.
+3. `.github/workflows/relay.yml` runs `python run_once.py` — a single IMAP
+   cycle over only the newest unread emails, limited by `LOOKBACK_MINUTES` so
+   old backlog is never touched. It is triggered by the free external scheduler
+   described in
+   [Reliable scheduling](#reliable-scheduling-external-trigger--required-for-on-time-relays).
 
-### Scheduling latency (why ~1 minute)
+### Reliable scheduling (external trigger) — required for on-time relays
 
-GitHub's documented minimum cadence for a **single** cron expression is 5
-minutes. The workflow works around that with five expressions that are each
-individually a legal 5-minute cadence but offset from each other by one minute:
+GitHub's built-in `schedule` trigger is **best-effort and frequently unusable**:
 
-| Expression | Fires at |
-|---|---|
-| `*/5 * * * *` | :00 :05 :10 :15 … |
-| `1-59/5 * * * *` | :01 :06 :11 :16 … |
-| `2-59/5 * * * *` | :02 :07 :12 :17 … |
-| `3-59/5 * * * *` | :03 :08 :13 :18 … |
-| `4-59/5 * * * *` | :04 :09 :14 :19 … |
+- On newly created repositories it often **never fires at all** — see community
+  discussions [#196269](https://github.com/orgs/community/discussions/196269)
+  and [#209332](https://github.com/orgs/community/discussions/209332), which
+  describe exactly the "0 scheduled runs while manual dispatch works" symptom.
+- Even when it does run, scheduled jobs can be **hours late**, and runs are
+  **dropped** under load — see
+  [actions/runner#4468](https://github.com/actions/runner/issues/4468), where
+  drift grew past 4 hours.
+- Cadences faster than 5 minutes are **silently coerced** back to 5 minutes.
 
-Together they fire the workflow about once a minute. This is best-effort:
-GitHub may delay scheduled runs under load (and does not retry skipped ones),
-so treat ~1 minute as typical rather than guaranteed. If GitHub ever collapses
-these onto a single 5-minute grid, the schedule simply degrades to the old
-behaviour — no functional regression. Deduplication is unaffected either way:
+The workflow therefore keeps `schedule` only as a last-resort fallback and is
+instead driven by a **free external scheduler** calling the GitHub API once a
+minute. That gives exact timing, retries on failure, and — because API triggers
+count as repository activity — it also prevents the 60-day auto-disable.
+
+**1. Create a fine-grained personal access token**
+
+GitHub → Settings → Developer settings → Personal access tokens → Fine-grained
+tokens → Generate new token. Scope it to **only** `akerm1/netflix-telegram-relay`
+and grant either:
+
+- **Actions: Read and write** — for `workflow_dispatch` (recommended), or
+- **Contents: Read and write** — for `repository_dispatch`
+
+Give it a short expiry and calendar the rotation date.
+
+**2. Create a free cron job at [cron-job.org](https://cron-job.org)**
+
+Every **1 minute**, HTTPS **POST**, with header `Authorization: Bearer <token>`:
+
+```
+POST https://api.github.com/repos/akerm1/netflix-telegram-relay/actions/workflows/relay.yml/dispatches
+Body: {"ref":"master"}
+```
+
+The endpoint returns `204` immediately (the workflow runs in the background), so
+cron-job.org's 30-second timeout is never hit and its 25-failure auto-disable
+never trips. Confirm `HTTP 204` in the cron-job.org **Execution history**.
+
+Typical latency is then **well under a minute**. For ~10-second latency run
+`python bot.py` locally instead — do not run both at the same time if you want
+to avoid the rare case of a duplicate delivery (both poll the same mailbox).
+
+Deduplication is unaffected by how often the workflow is triggered:
 `run_once.py` only relays *unread* mail and marks it read, and the workflow's
 `concurrency` group serializes runs.
-
-For ~10-second latency run `python bot.py` locally instead — do not run both at
-the same time if you want to avoid the rare case of a duplicate delivery (both
-poll the same mailbox).
 
 ## Tests
 
