@@ -1,0 +1,4 @@
+[lint]
+# BLE001/S110: broad exception handling is intentional for IMAP/network
+# resilience and defensive email parsing (must never crash the bot).
+ignore = ["BLE001", "S110"]
