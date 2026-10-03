@@ -53,11 +53,31 @@ Your answers are saved to `.env` and you only ever do this once.
 | `EMAIL_APP_PASSWORD` | Dedicated app password for the mailbox |
 | `POLL_INTERVAL_SECONDS` | Polling frequency (default: 10) |
 | `DISPATCH_EXISTING_ON_START` | `false` (default): on first run, emails already unread **before** the bot started are skipped (not sent), so old backlog doesn't flood the group. Set `true` to relay everything. |
+| `LOOKBACK_MINUTES` | Only relay emails newer than this many minutes (default: `15`). Used by `run_once.py`. |
+
+## 24/7 Deployment (GitHub Actions)
+
+The bot runs as a scheduled GitHub Actions workflow (free forever on a public
+repo — no server, no card, PC can stay off):
+
+1. Push this repository to GitHub and make it **public** (public repos get
+   unlimited Actions minutes; private repos are capped at 2000/min month).
+2. Add repository secrets (`gh secret set NAME --body "value"`):
+   `TELEGRAM_BOT_TOKEN`, `TELEGRAM_GROUP_ID`, `ADMIN_TELEGRAM_ID`,
+   `IMAP_SERVER`, `EMAIL_ACCOUNT`, `EMAIL_APP_PASSWORD`.
+3. `.github/workflows/relay.yml` runs `python run_once.py` every 5 minutes —
+   a single IMAP cycle over only the newest unread emails, limited by
+   `LOOKBACK_MINUTES` so old backlog is never touched.
+
+Latency is at most 5 minutes. For 10-second latency run `python bot.py`
+locally instead — do not run both at the same time if you want to avoid the
+rare case of a duplicate delivery (both poll the same mailbox).
 
 ## Architecture
 
 ```
-bot.py               Main entry point & orchestration
+bot.py               Main entry point & orchestration (long-running, 10s poll)
+run_once.py          One-shot relay cycle for scheduled CI runs
 config.py            Environment configuration & validation
 logger.py            Logging with sensitive-data masking
 parser.py            Email parsing & category detection (regex)
